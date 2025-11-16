@@ -5,45 +5,676 @@
   <title>화장품 기록장</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    :root {
-      --gap: 10px;
-      --radius: 12px;
-    }
+    :root { --gap: 10px; --radius: 12px; }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: system-ui, -apple-system, Segoe UI, Roboto,
         "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", Arial, sans-serif;
-      background: #fafafa;
-      color: #111;
+      background: #fafafa; color: #111;
     }
-    header {
-      position: sticky;
-      top: 0;
-      z-index: 10;
-      background: rgba(255, 255, 255, 0.95);
-      border-bottom: 1px solid #eee;
-      backdrop-filter: blur(6px);
+    header { position: sticky; top: 0; z-index: 10; background: rgba(255,255,255,0.95); border-bottom: 1px solid #eee; backdrop-filter: blur(6px); }
+    header .wrap { max-width: 1100px; margin: 0 auto; padding: 14px; display:flex; gap:12px; align-items:center; justify-content:space-between; }
+    header h1 { font-size:18px; margin:0; }
+    header nav { display:flex; gap:8px; flex-wrap:wrap; }
+    header nav button { border:1px solid #ddd; background:#fff; padding:7px 11px; border-radius:10px; cursor:pointer; font-size:13px; }
+    header nav button.active { background:#111; color:#fff; border-color:#111; }
+    main.container { max-width:1100px; margin:18px auto; padding:0 14px 48px; display:grid; gap:16px; }
+    .grid { display:grid; grid-template-columns:1fr; gap:16px; }
+    @media (min-width:1000px) { .grid { grid-template-columns:2fr 1fr; } }
+    .card { background:#fff; border:1px solid #eee; border-radius:var(--radius); padding:16px; }
+    .card h2 { margin:0 0 10px 0; font-size:18px; }
+    .row { display:grid; grid-template-columns:repeat(12,1fr); gap:10px; margin-bottom:10px; }
+    .row > label { grid-column: span 3; display:flex; flex-direction:column; gap:6px; font-size:12px; }
+    .row > label input, .row > label select, .row > label textarea { padding:9px 10px; border:1px solid #ddd; border-radius:10px; font-size:14px; width:100%; }
+    .row > label textarea { min-height:70px; resize:vertical; }
+    .row.actions { display:flex; gap:8px; margin-bottom:0; flex-wrap:wrap; }
+    .btn { border:1px solid #ddd; background:#111; color:#fff; padding:9px 13px; border-radius:10px; cursor:pointer; font-size:13px; }
+    .btn.secondary { background:#fff; color:#111; }
+    .btn.warn { background:#b42318; color:#fff; border-color:#b42318; }
+    .pill { font-size:12px; background:#f1f1f1; border-radius:999px; padding:4px 8px; display:inline-flex; align-items:center; gap:6px; }
+    table { width:100%; border-collapse:collapse; }
+    th, td { text-align:left; padding:8px; border-bottom:1px solid #eee; font-size:14px; }
+    tr:hover { background:#fafafa; }
+    .muted { color:#666; font-size:12px; }
+    .badge { padding:3px 7px; border-radius:999px; background:#eef; font-size:12px; }
+    .danger { color:#b42318; }
+    .flex { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .right { margin-left:auto; }
+    .mono { font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+    footer { text-align:center; color:#777; font-size:12px; padding:24px; }
+    .hint { font-size:12px; color:#666; }
+    .filter { display:flex; gap:8px; flex-wrap:wrap; }
+    .filter input, .filter select { border:1px solid #ddd; border-radius:10px; padding:8px 10px; font-size:13px; }
+    .stat { display:flex; flex-direction:column; gap:4px; padding:10px 12px; border:1px dashed #ddd; border-radius:12px; min-width:150px; background:#fcfcff; }
+    .stats { display:flex; flex-wrap:wrap; gap:10px; }
+    .nowrap { white-space:nowrap; }
+    .small-muted { font-size:12px; color:#666; margin-top:6px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1>화장품 기록장</h1>
+      <nav>
+        <button id="tabDashboardBtn" class="active">대시보드</button>
+        <button id="tabProductsBtn">제품관리</button>
+        <button id="tabUsageBtn">사용기록</button>
+        <button id="tabDataBtn">데이터</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <section id="tabDashboard" class="card">
+      <h2>대시보드</h2>
+      <div class="stats" id="dashboardStats"></div>
+      <div class="card" style="margin-top:12px;">
+        <div class="flex">
+          <strong>만료 임박(30일 이내) · 만료된 제품</strong>
+          <span class="right muted">PAO 기준</span>
+        </div>
+        <table id="expiryTable">
+          <thead>
+            <tr><th>제품</th><th>개봉일</th><th>PAO</th><th>권장 폐기일</th><th>상태</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="tabProducts" class="grid" style="display:none;">
+      <div class="card">
+        <h2>제품 추가/수정</h2>
+        <form id="productForm">
+          <input type="hidden" name="product_id" />
+          <div class="row">
+            <label style="grid-column: span 3;">브랜드
+              <input name="brand" placeholder="예: COSRX" />
+            </label>
+            <label style="grid-column: span 5;">제품명*
+              <input name="product_name" required placeholder="예: Low pH Good Morning Gel Cleanser" />
+            </label>
+            <label style="grid-column: span 4;">카테고리
+              <input name="category" placeholder="예: Cleanser" />
+            </label>
+          </div>
+
+          <div class="row">
+            <label style="grid-column: span 4;">색상/버전
+              <input name="shade_or_variant" placeholder="예: 06 Deep Soul" />
+            </label>
+
+            <label style="grid-column: span 3;">용량(표기)
+              <input name="size" placeholder="예: 150ml / 5.5g" />
+            </label>
+
+            <label style="grid-column: span 2;">용량(숫자)
+              <input name="size_value" type="number" step="0.01" min="0" placeholder="예: 150" />
+            </label>
+
+            <label style="grid-column: span 1;">단위
+              <select name="size_unit"><option value="ml">ml</option><option value="g">g</option></select>
+            </label>
+
+            <label style="grid-column: span 2;">가격(원)
+              <input name="price_krw" type="number" min="0" step="1" />
+            </label>
+          </div>
+
+          <div class="row">
+            <div style="grid-column: span 12;">
+              <div id="realtimePricePerUnit" class="small-muted">가격과 용량을 입력하면 원/단위가 자동 계산됩니다.</div>
+            </div>
+          </div>
+
+          <div class="row">
+            <label style="grid-column: span 4;">구매일
+              <input name="purchase_date" type="date" />
+            </label>
+            <label style="grid-column: span 4;">개봉일
+              <input name="opened_date" type="date" />
+            </label>
+            <label style="grid-column: span 4;">사용완료일
+              <input name="finished_date" type="date" />
+            </label>
+          </div>
+
+          <div class="row">
+            <label style="grid-column: span 4;">PAO(개월)
+              <input name="period_after_open_months" type="number" min="0" step="1" placeholder="예: 12" />
+            </label>
+            <label style="grid-column: span 4;">평점(1~5)
+              <input name="rating_1to5" type="number" min="0" max="5" step="1" />
+            </label>
+            <label style="grid-column: span 12;">코멘트
+              <textarea name="comment" placeholder="간단한 메모"></textarea>
+            </label>
+          </div>
+
+          <div class="row actions">
+            <button class="btn" type="submit">저장</button>
+            <button class="btn secondary" type="button" id="resetProductForm">새로 입력</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <div class="flex">
+          <h2 style="margin:0;">제품 목록</h2>
+          <div class="right filter">
+            <input id="productSearch" placeholder="제품/브랜드 검색" />
+            <select id="categoryFilter"><option value="">전체 카테고리</option></select>
+            <select id="productSort" title="정렬">
+              <option value="default">정렬: 기본(등록순)</option>
+              <option value="ppu-asc">원/단위 오름차순 (저렴→비쌈)</option>
+              <option value="ppu-desc">원/단위 내림차순 (비쌈→저렴)</option>
+            </select>
+          </div>
+        </div>
+        <table id="productsTable">
+          <thead>
+            <tr>
+              <th>브랜드</th><th>제품</th><th>카테고리</th><th class="nowrap">개봉일</th><th class="nowrap">완료일</th><th class="nowrap">원/단위</th><th>통계</th><th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="tabUsage" class="grid" style="display:none;">
+      <div class="card">
+        <h2>사용 기록 입력</h2>
+        <form id="usageForm">
+          <div class="row">
+            <label style="grid-column: span 4;">날짜*
+              <input name="date" type="date" required />
+            </label>
+            <label style="grid-column: span 8;">제품*
+              <select name="product_id" required></select>
+            </label>
+          </div>
+          <div class="row">
+            <label style="grid-column: span 6;">사용량 메모
+              <input name="dose_note" placeholder="예: 2 pumps / pea-sized" />
+            </label>
+            <label style="grid-column: span 6;">느낌 메모
+              <input name="feel_note" placeholder="예: 순함, 보송, 발색 굿" />
+            </label>
+          </div>
+          <div class="row actions">
+            <button class="btn" type="submit">추가</button>
+            <button class="btn secondary" type="button" id="quickToday">오늘 반복사용</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <div class="flex">
+          <h2 style="margin:0;">사용 기록</h2>
+          <div class="right filter">
+            <input id="usageSearch" placeholder="메모 검색" />
+            <select id="usageProductFilter"><option value="">전체 제품</option></select>
+          </div>
+        </div>
+        <table id="usageTable">
+          <thead>
+            <tr><th>날짜</th><th>제품</th><th>사용량 메모</th><th>느낌</th><th></th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="tabData" class="grid" style="display:none;">
+      <div class="card">
+        <h2>내보내기 / 가져오기</h2>
+        <div class="flex">
+          <button class="btn" id="exportJSON">JSON 내보내기</button>
+          <button class="btn" id="exportCSV">CSV 내보내기(제품/사용기록)</button>
+          <label class="pill">JSON 가져오기<input type="file" id="importFile" accept=".json" /></label>
+          <button class="btn warn" id="clearAll">전체 삭제</button>
+          <span class="right muted">모든 데이터는 이 브라우저(LocalStorage)에만 저장됩니다.</span>
+        </div>
+        <p class="hint">JSON으로 전체 백업/복원이 가능합니다. 다른 기기로 옮길 때도 JSON 파일만 옮기면 돼요.</p>
+      </div>
+
+      <div class="card">
+        <h2>설명</h2>
+        <ul class="hint">
+          <li>PAO(개월): 개봉 후 사용 권장기간(예: 12M). 개봉일 + PAO로 만료일 계산.</li>
+          <li>통계: 사용기간(일), 평균 사용빈도(회/일), 사용당 비용(원/회) 자동 계산.</li>
+          <li>파일로 여는 형태라, 애초에 오프라인에서도 동작합니다.</li>
+          <li>원/단위 계산: 가격과 숫자 용량(예: 150)과 단위(ml 또는 g)를 입력하면 자동 계산됩니다.</li>
+          <li>제품 목록에서 '원/단위' 기준으로 오름/내림 정렬할 수 있습니다.</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <footer>© 화장품 기록장 · Local only · JSON 백업 지원</footer>
+
+  <script>
+    // ===== 유틸리티 =====
+    const $ = (sel) => document.querySelector(sel);
+    const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+    const fmtDate = (d) => (d ? new Date(d).toISOString().slice(0,10) : "");
+    const daysBetween = (a,b) => { if(!a||!b) return null; const A=new Date(a), B=new Date(b); return Math.round((B-A)/(1000*60*60*24)); };
+    const addMonths = (dateStr, months) => { if(!dateStr||!months) return ""; const d=new Date(dateStr); d.setMonth(d.getMonth()+Number(months)); return fmtDate(d); };
+
+    // ===== 저장소 =====
+    const LS_KEYS = { products: "coslog_products", usage: "coslog_usage" };
+    const store = {
+      getProducts(){ return JSON.parse(localStorage.getItem(LS_KEYS.products) || "[]"); },
+      setProducts(list){ localStorage.setItem(LS_KEYS.products, JSON.stringify(list)); },
+      getUsage(){ return JSON.parse(localStorage.getItem(LS_KEYS.usage) || "[]"); },
+      setUsage(list){ localStorage.setItem(LS_KEYS.usage, JSON.stringify(list)); },
+      clearAll(){ localStorage.removeItem(LS_KEYS.products); localStorage.removeItem(LS_KEYS.usage); }
+    };
+
+    // ===== 상태 =====
+    let products = store.getProducts();
+    let usage = store.getUsage();
+
+    // ===== ID 생성 =====
+    const nextId = (arr, key) => (arr.reduce((m,o) => Math.max(m, o[key] || 0), 0) || 0) + 1;
+
+    // ===== 제품별 통계 =====
+    function productStats(p) {
+      const logs = usage.filter((u) => u.product_id === p.product_id);
+      const timesUsed = logs.length;
+      const opened = p.opened_date || null;
+      const finished = p.finished_date || null;
+      const endDate = finished || fmtDate(new Date());
+      const totalDaysOpen = opened ? daysBetween(opened, endDate) : null;
+      const avgPerDay = opened && totalDaysOpen && totalDaysOpen > 0 && timesUsed > 0 ? timesUsed / totalDaysOpen : null;
+      const costPerUse = timesUsed > 0 && p.price_krw ? Number(p.price_krw) / timesUsed : null;
+      const discardDate = p.opened_date && p.period_after_open_months ? addMonths(p.opened_date, p.period_after_open_months) : "";
+      const todayStr = fmtDate(new Date());
+      const pastPAO = discardDate && new Date(discardDate) < new Date(todayStr);
+      return { timesUsed, totalDaysOpen, avgPerDay, costPerUse, discardDate, pastPAO };
     }
-    header .wrap {
-      max-width: 1100px;
-      margin: 0 auto;
-      padding: 14px;
-      display: flex;
-      gap: 12px;
-      align-items: center;
-      justify-content: space-between;
+
+    // ===== 유틸: 원/단위 계산 =====
+    function calcPricePerUnit(price, sizeValue) {
+      const p = Number(price);
+      const v = Number(sizeValue);
+      if (!isFinite(p) || !isFinite(v) || v <= 0) return null;
+      return Math.round((p / v) * 100) / 100;
     }
-    header h1 {
-      font-size: 18px;
-      margin: 0;
+    function fmtPricePerUnit(ppu) {
+      if (ppu == null) return "-";
+      return ppu.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
     }
-    header nav {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
+
+    // ===== 렌더링 =====
+    function renderCategoryFilter() {
+      const catSet = new Set(products.map((p) => p.category).filter(Boolean));
+      const sel = $("#categoryFilter");
+      sel.innerHTML = '<option value="">전체 카테고리</option>' + [...catSet].map((c)=>`<option>${c}</option>`).join("");
     }
-    header nav button {
-      border: 1px solid #ddd;
-      background: #fff;
-      padding: 7px 11px;
+
+    // ---- 수정된 renderProductsTable: 통계에 '용량당 비용(원/단위)' 표시 ----
+    function renderProductsTable() {
+      const q = ($("#productSearch").value || "").toLowerCase();
+      const cat = $("#categoryFilter").value || "";
+      const sortMode = $("#productSort").value || "default";
+      const tbody = $("#productsTable tbody");
+
+      let list = products
+        .filter((p) => {
+          if (!q) return true;
+          const name = (p.product_name || "").toLowerCase();
+          const brand = (p.brand || "").toLowerCase();
+          return name.includes(q) || brand.includes(q);
+        })
+        .filter((p) => {
+          if (!cat) return true;
+          return (p.category || "") === cat;
+        });
+
+      // 정렬: price_per_unit 기준
+      if (sortMode === "ppu-asc" || sortMode === "ppu-desc") {
+        list = list.slice();
+        list.sort((a,b) => {
+          const ax = a.price_per_unit;
+          const bx = b.price_per_unit;
+          const aNull = ax == null;
+          const bNull = bx == null;
+          if (aNull && bNull) return 0;
+          if (aNull) return 1;
+          if (bNull) return -1;
+          if (ax === bx) return 0;
+          return sortMode === "ppu-asc" ? ax - bx : bx - ax;
+        });
+      } else {
+        list = list.slice().sort((a,b) => (b.product_id||0) - (a.product_id||0));
+      }
+
+      const rows = list.map((p) => {
+        const s = productStats(p);
+        const perUnitText = p.price_per_unit != null ? `${fmtPricePerUnit(p.price_per_unit)} 원/${p.size_unit || "unit"}` : "-";
+        const statStr = [
+          s.totalDaysOpen != null ? `일수 ${s.totalDaysOpen}` : "일수 -",
+          s.avgPerDay != null ? `빈도 ${s.avgPerDay.toFixed(2)}/일` : "빈도 -",
+          `용량당 비용 ${perUnitText}`
+        ].join(" · ");
+
+        return `
+        <tr>
+          <td>${p.brand || ""}</td>
+          <td class="nowrap">${p.product_name}</td>
+          <td>${p.category || ""}</td>
+          <td class="nowrap">${p.opened_date || ""}</td>
+          <td class="nowrap">${p.finished_date || ""}</td>
+          <td class="nowrap">${perUnitText}</td>
+          <td class="muted">${statStr}</td>
+          <td class="nowrap">
+            <button class="btn secondary" data-edit="${p.product_id}">편집</button>
+            <button class="btn secondary" data-finish="${p.product_id}">완료</button>
+            <button class="btn warn" data-del="${p.product_id}">삭제</button>
+          </td>
+        </tr>`;
+      }).join("");
+
+      tbody.innerHTML = rows || '<tr><td colspan="8" class="muted">제품이 없습니다.</td></tr>';
+
+      tbody.querySelectorAll("button[data-edit]").forEach(b => b.onclick = () => loadProductForm(b.getAttribute("data-edit")));
+      tbody.querySelectorAll("button[data-del]").forEach(b => b.onclick = () => deleteProduct(b.getAttribute("data-del")));
+      tbody.querySelectorAll("button[data-finish]").forEach(b => b.onclick = () => finishProduct(b.getAttribute("data-finish")));
+    }
+    // ---- end renderProductsTable ----
+
+    function renderUsageProductOptions() {
+      const sel = document.querySelector('select[name="product_id"]');
+      const filterSel = $("#usageProductFilter");
+      const opts = products.map((p) => `<option value="${p.product_id}">${p.product_name}</option>`).join("");
+      sel.innerHTML = '<option value="">제품 선택</option>' + opts;
+      filterSel.innerHTML = '<option value="">전체 제품</option>' + opts;
+    }
+
+    function renderUsageTable() {
+      const q = ($("#usageSearch").value || "").toLowerCase();
+      const pid = $("#usageProductFilter").value || "";
+      const tbody = $("#usageTable tbody";
+
+      const rows = usage
+        .filter((u) => (!pid ? true : String(u.product_id) === String(pid)))
+        .filter((u) => {
+          if (!q) return true;
+          const d = (u.dose_note || "").toLowerCase();
+          const f = (u.feel_note || "").toLowerCase();
+          return d.includes(q) || f.includes(q);
+        })
+        .sort((a, b) => (a.date < b.date ? 1 : -1))
+        .map((u) => {
+          const p = products.find((x) => x.product_id === u.product_id);
+          return `
+          <tr>
+            <td class="nowrap">${u.date}</td>
+            <td class="nowrap">${p ? p.product_name : "(삭제된 제품)"}</td>
+            <td>${u.dose_note || ""}</td>
+            <td>${u.feel_note || ""}</td>
+            <td class="nowrap">
+              <button class="btn warn" data-del-usage="${u.log_id}">삭제</button>
+            </td>
+          </tr>`;
+        })
+        .join("");
+
+      tbody.innerHTML = rows || '<tr><td colspan="5" class="muted">사용 기록이 없습니다.</td></tr>';
+      tbody.querySelectorAll("button[data-del-usage]").forEach(b => b.onclick = () => deleteUsage(b.getAttribute("data-del-usage")));
+    }
+
+    function renderDashboard() {
+      const totalSpend = products.reduce((s,p)=>s+(Number(p.price_krw)||0),0);
+      const totalProducts = products.length;
+      const totalLogs = usage.length;
+      const avgCostPerUse = (() => {
+        const cpu = products.map((p)=>productStats(p).costPerUse).filter((v)=>v);
+        if (!cpu.length) return null;
+        return Math.round(cpu.reduce((a,b)=>a+b,0)/cpu.length);
+      })();
+      const perUnitList = products.map((p)=>p.price_per_unit).filter((v)=>v!=null);
+      const avgPerUnit = perUnitList.length ? Math.round((perUnitList.reduce((a,b)=>a+b,0)/perUnitList.length)*100)/100 : null;
+
+      const wrap = $("#dashboardStats");
+      wrap.innerHTML = `
+        <div class="stat"><div class="muted">총 지출(등록 기준)</div><div class="mono">${totalSpend.toLocaleString()} 원</div></div>
+        <div class="stat"><div class="muted">제품 수</div><div class="mono">${totalProducts}</div></div>
+        <div class="stat"><div class="muted">사용 기록</div><div class="mono">${totalLogs}</div></div>
+        <div class="stat"><div class="muted">평균 사용당 비용</div><div class="mono">${avgCostPerUse!=null?avgCostPerUse.toLocaleString()+' 원':'-'}</div></div>
+        <div class="stat"><div class="muted">평균 원/단위</div><div class="mono">${avgPerUnit!=null?fmtPricePerUnit(avgPerUnit)+' 원':'-'}</div></div>
+      `;
+
+      const tbody = $("#expiryTable tbody");
+      const soon = [];
+      const todayStr = fmtDate(new Date());
+      const today = new Date(todayStr);
+      products.forEach((p)=> {
+        const s = productStats(p);
+        if (!s.discardDate) return;
+        const dd = new Date(s.discardDate);
+        const diff = Math.round((dd - today)/(1000*60*60*24));
+        if (diff <= 30 || s.pastPAO) soon.push({p,s,diff});
+      });
+      soon.sort((a,b)=> a.s.discardDate > b.s.discardDate ? 1 : -1);
+      tbody.innerHTML = soon.map(({p,s,diff})=>{
+        let state;
+        if (s.pastPAO) state = '<span class="danger">만료</span>';
+        else if (diff <= 7) state = `<span class="danger">임박(${diff}일)</span>`;
+        else state = `<span class="badge">D-${diff}</span>`;
+        return `<tr>
+          <td class="nowrap">${p.product_name}</td>
+          <td class="nowrap">${p.opened_date||""}</td>
+          <td>${p.period_after_open_months? p.period_after_open_months + "M":""}</td>
+          <td class="nowrap">${s.discardDate}</td>
+          <td>${state}</td>
+        </tr>`;
+      }).join("") || '<tr><td colspan="5" class="muted">해당 없음</td></tr>';
+    }
+
+    // ===== 폼/동작 =====
+    function loadProductForm(idStr) {
+      const id = Number(idStr);
+      const p = products.find((x)=>x.product_id===id);
+      if (!p) return;
+      const f = $("#productForm");
+      f.product_id.value = p.product_id;
+      f.brand.value = p.brand || "";
+      f.product_name.value = p.product_name || "";
+      f.category.value = p.category || "";
+      f.shade_or_variant.value = p.shade_or_variant || "";
+      f.size.value = p.size || "";
+      f.size_value.value = (p.size_value != null ? p.size_value : "");
+      f.size_unit.value = p.size_unit || "ml";
+      f.price_krw.value = p.price_krw || "";
+      f.purchase_date.value = p.purchase_date || "";
+      f.opened_date.value = p.opened_date || "";
+      f.finished_date.value = p.finished_date || "";
+      f.period_after_open_months.value = p.period_after_open_months != null ? p.period_after_open_months : "";
+      f.comment.value = p.comment || "";
+      f.rating_1to5.value = p.rating_1to5 != null ? p.rating_1to5 : "";
+      updateRealtimePpu();
+      window.scrollTo({ top:0, behavior:"smooth" });
+    }
+
+    function deleteProduct(idStr) {
+      if (!confirm("해당 제품을 삭제할까요? 사용 기록도 함께 삭제됩니다.")) return;
+      const id = Number(idStr);
+      products = products.filter((p)=>p.product_id !== id);
+      usage = usage.filter((u)=>u.product_id !== id);
+      store.setProducts(products); store.setUsage(usage); renderAll();
+    }
+
+    function finishProduct(idStr) {
+      const id = Number(idStr);
+      const p = products.find((x)=>x.product_id===id);
+      if (!p) return;
+      p.finished_date = fmtDate(new Date());
+      store.setProducts(products); renderAll();
+    }
+
+    function deleteUsage(idStr) {
+      if (!confirm("이 사용 기록을 삭제할까요?")) return;
+      const id = Number(idStr);
+      usage = usage.filter((u)=>u.log_id !== id);
+      store.setUsage(usage); renderAll();
+    }
+
+    // ===== 내보내기 / 가져오기 =====
+    function downloadFile(filename, content, mime) {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([content], { type: mime || "application/octet-stream" }));
+      a.download = filename; a.click(); URL.revokeObjectURL(a.href);
+    }
+    function exportJSON(){ downloadFile("cosmetics_backup.json", JSON.stringify({products, usage, exported_at: new Date().toISOString()}, null, 2), "application/json"); }
+    function toCSV(rows){ if(!rows.length) return ""; const headers = Object.keys(rows[0]); const esc = (v)=>{ if(v===null||v===undefined) return ""; const s=String(v); return '"' + s.replace(/"/g,'""') + '"'; }; const body = rows.map((r)=> headers.map((h)=> esc(r[h])).join(",")).join("\n"); return headers.join(",") + "\n" + body; }
+    function exportCSV(){ if(products.length) downloadFile("products.csv", toCSV(products), "text/csv;charset=utf-8"); if(usage.length) downloadFile("usage_log.csv", toCSV(usage), "text/csv;charset=utf-8"); if(!products.length && !usage.length) alert("내보낼 데이터가 없습니다."); }
+
+    function importJSONFile(evt){
+      const file = evt.target.files[0]; if(!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const data = JSON.parse(reader.result);
+          if (!data.products || !data.usage) { alert("형식이 올바르지 않습니다. products/usage 키가 필요합니다."); return; }
+          products = (data.products || []).map(p => {
+            if (p.price_per_unit == null && p.price_krw != null && p.size_value) {
+              const v = calcPricePerUnit(p.price_krw, p.size_value);
+              if (v != null) p.price_per_unit = v;
+            }
+            return p;
+          });
+          usage = data.usage;
+          store.setProducts(products); store.setUsage(usage); renderAll(); alert("JSON 가져오기가 완료되었습니다.");
+        } catch(e) { console.error(e); alert("JSON 파싱 중 오류: " + e.message); }
+      };
+      reader.readAsText(file, "utf-8");
+    }
+
+    // ===== 탭 =====
+    function showTab(name){
+      const tabs = ["Dashboard","Products","Usage","Data"];
+      tabs.forEach((t) => { const sec = document.getElementById("tab"+t); if(sec) sec.style.display = t===name ? "block" : "none"; });
+      $("#tabDashboardBtn").classList.toggle("active", name==="Dashboard");
+      $("#tabProductsBtn").classList.toggle("active", name==="Products");
+      $("#tabUsageBtn").classList.toggle("active", name==="Usage");
+      $("#tabDataBtn").classList.toggle("active", name==="Data");
+      window.scrollTo({ top:0, behavior:"smooth" });
+    }
+
+    function renderAll(){ renderCategoryFilter(); renderProductsTable(); renderUsageProductOptions(); renderUsageTable(); renderDashboard(); }
+
+    // ===== 초기화 =====
+    document.addEventListener("DOMContentLoaded", () => {
+      if (products.length === 0 && usage.length === 0) {
+        products = [
+          { product_id:1, brand:"COSRX", product_name:"Low pH Good Morning Gel Cleanser", category:"Cleanser", shade_or_variant:"", size:"150ml", size_value:150, size_unit:"ml", price_krw:8900, price_per_unit:calcPricePerUnit(8900,150), purchase_date:"2025-09-10", opened_date:"2025-09-20", finished_date:"", period_after_open_months:12, comment:"순하고 아침에만 사용", rating_1to5:5 },
+          { product_id:2, brand:"Rom&nd", product_name:"Zero Velvet Tint", category:"Lip Tint", shade_or_variant:"06 Deep Soul", size:"5.5g", size_value:5.5, size_unit:"g", price_krw:13000, price_per_unit:calcPricePerUnit(13000,5.5), purchase_date:"2025-08-01", opened_date:"2025-08-15", finished_date:"2025-10-10", period_after_open_months:18, comment:"마스크에 거의 안 묻음", rating_1to5:4 },
+          { product_id:3, brand:"Round Lab", product_name:"Birch Juice Moisturizing Cream", category:"Moisturizer", shade_or_variant:"", size:"80ml", size_value:80, size_unit:"ml", price_krw:28000, price_per_unit:calcPricePerUnit(28000,80), purchase_date:"2025-10-05", opened_date:"", finished_date:"", period_after_open_months:12, comment:"겨울 대비 보습템", rating_1to5:null }
+        ];
+        usage = [
+          { log_id:1, date:"2025-10-20", product_id:1, dose_note:"pea-sized", feel_note:"상쾌" },
+          { log_id:2, date:"2025-10-21", product_id:1, dose_note:"pea-sized", feel_note:"무난" },
+          { log_id:3, date:"2025-10-21", product_id:2, dose_note:"2 coats", feel_note:"발색 굿" }
+        ];
+        store.setProducts(products); store.setUsage(usage);
+      }
+
+      $("#tabDashboardBtn").onclick = () => showTab("Dashboard");
+      $("#tabProductsBtn").onclick = () => showTab("Products");
+      $("#tabUsageBtn").onclick = () => showTab("Usage");
+      $("#tabDataBtn").onclick = () => showTab("Data");
+
+      const form = $("#productForm");
+      const priceInput = form.price_krw;
+      const sizeValueInput = form.size_value;
+      const sizeUnitSelect = form.size_unit;
+      const realtimeEl = $("#realtimePricePerUnit");
+
+      function updateRealtimePpu() {
+        const p = priceInput.value ? Number(priceInput.value) : null;
+        const v = sizeValueInput.value ? Number(sizeValueInput.value) : null;
+        const unit = sizeUnitSelect.value || "ml";
+        const ppu = calcPricePerUnit(p, v);
+        if (ppu == null) realtimeEl.textContent = "가격과 용량(숫자, 단위)을 입력하면 원/단위가 자동 계산됩니다.";
+        else realtimeEl.textContent = `계산: ${fmtPricePerUnit(ppu)} 원/${unit} (저장 시 이 값이 제품 데이터에 기록됩니다)`;
+      }
+
+      priceInput.addEventListener("input", updateRealtimePpu);
+      sizeValueInput.addEventListener("input", updateRealtimePpu);
+      sizeUnitSelect.addEventListener("change", updateRealtimePpu);
+
+      $("#productSort").addEventListener("change", renderProductsTable);
+
+      $("#productForm").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const f = e.target;
+        const getRaw = (name) => f[name].value;
+        const getTrim = (name) => (f[name].value || "").trim();
+        const idVal = f.product_id.value;
+        const sizeValueNum = getRaw("size_value") ? Number(getRaw("size_value")) : null;
+        const priceNum = getRaw("price_krw") ? Number(getRaw("price_krw")) : null;
+
+        if (!getTrim("product_name")) { alert('제품명을 입력하세요.'); return; }
+        if (sizeValueNum != null && (!isFinite(sizeValueNum) || sizeValueNum <= 0)) { alert("용량(숫자)은 0보다 큰 숫자여야 합니다."); return; }
+        if (priceNum != null && (!isFinite(priceNum) || priceNum < 0)) { alert("가격은 0 이상의 숫자여야 합니다."); return; }
+
+        const obj = {
+          product_id: idVal ? Number(idVal) : nextId(products, "product_id"),
+          brand: getTrim("brand"),
+          product_name: getTrim("product_name"),
+          category: getTrim("category"),
+          shade_or_variant: getTrim("shade_or_variant"),
+          size: getTrim("size"),
+          size_value: sizeValueNum,
+          size_unit: getRaw("size_unit") || "ml",
+          price_krw: priceNum != null ? priceNum : null,
+          price_per_unit: priceNum != null && sizeValueNum != null ? calcPricePerUnit(priceNum, sizeValueNum) : null,
+          purchase_date: getRaw("purchase_date") || "",
+          opened_date: getRaw("opened_date") || "",
+          finished_date: getRaw("finished_date") || "",
+          period_after_open_months: getRaw("period_after_open_months") ? Number(getRaw("period_after_open_months")) : null,
+          comment: f.comment.value,
+          rating_1to5: getRaw("rating_1to5") ? Number(getRaw("rating_1to5")) : null
+        };
+        const idx = products.findIndex((p)=>p.product_id === obj.product_id);
+        if (idx >= 0) products[idx] = obj; else products.push(obj);
+        store.setProducts(products);
+        f.reset(); f.product_id.value = ""; realtimeEl.textContent = "가격과 용량을 입력하면 원/단위가 자동 계산됩니다.";
+        renderAll(); alert("저장되었습니다.");
+      });
+
+      $("#resetProductForm").onclick = () => { const f = $("#productForm"); f.reset(); f.product_id.value = ""; $("#realtimePricePerUnit").textContent = "가격과 용량을 입력하면 원/단위가 자동 계산됩니다."; };
+
+      $("#usageForm").addEventListener("submit", (e)=> {
+        e.preventDefault();
+        const f = e.target;
+        const date = f.date.value; const pid = f.product_id.value;
+        if (!date || !pid) { alert("날짜와 제품을 선택하세요."); return; }
+        const obj = { log_id: nextId(usage,"log_id"), date, product_id: Number(pid), dose_note: f.dose_note.value.trim(), feel_note: f.feel_note.value.trim() };
+        usage.push(obj); store.setUsage(usage); f.reset(); renderAll();
+      });
+
+      $("#quickToday").onclick = () => {
+        const f = $("#usageForm"); if (!f.product_id.value) { alert("제품을 먼저 선택하세요."); return; }
+        f.date.value = fmtDate(new Date()); const evt = new Event("submit"); f.dispatchEvent(evt);
+      };
+
+      $("#productSearch").addEventListener("input", renderProductsTable);
+      $("#categoryFilter").addEventListener("change", renderProductsTable);
+      $("#usageSearch").addEventListener("input", renderUsageTable);
+      $("#usageProductFilter").addEventListener("change", renderUsageTable);
+
+      $("#exportJSON").onclick = exportJSON;
+      $("#exportCSV").onclick = exportCSV;
+      $("#importFile").addEventListener("change", importJSONFile);
+      $("#clearAll").onclick = () => { if (!confirm("정말 전체 데이터를 삭제할까요?")) return; store.clearAll(); products=[]; usage=[]; renderAll(); };
+
+      renderAll(); showTab("Dashboard");
+    });
+  </script>
+</body>
+</html>
