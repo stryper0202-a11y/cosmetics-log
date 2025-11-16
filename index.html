@@ -398,7 +398,7 @@
     function renderUsageTable() {
       const q = ($("#usageSearch").value || "").toLowerCase();
       const pid = $("#usageProductFilter").value || "";
-      const tbody = $("#usageTable tbody";
+      const tbody = $("#usageTable tbody");
 
       const rows = usage
         .filter((u) => (!pid ? true : String(u.product_id) === String(pid)))
